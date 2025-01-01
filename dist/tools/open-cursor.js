@@ -1,13 +1,12 @@
 import { spawn } from 'child_process';
 import { platform } from 'os';
-import { createMCPTool, createSuccessResponse, createErrorResponse } from './tool-framework.js';
 import { z } from 'zod';
 // Optional input schema for path parameter
 const OpenCursorInput = z.object({
     path: z.string().optional()
 }).optional();
-// Create the open_cursor tool using the framework
-export const openCursorTool = createMCPTool({
+// Create the open_cursor tool
+export const openCursorTool = {
     name: 'open_cursor',
     description: 'Opens Cursor IDE. Can open a specific path or create a new window.',
     inputSchema: OpenCursorInput,
@@ -23,15 +22,26 @@ export const openCursorTool = createMCPTool({
                 stdio: 'ignore',
                 shell: true
             }).unref();
-            return createSuccessResponse('Successfully opened Cursor IDE');
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: 'Successfully opened Cursor IDE'
+                    }
+                ],
+                isError: false
+            };
         }
         catch (error) {
-            if (error instanceof Error) {
-                return createErrorResponse(error);
-            }
-            else {
-                return createErrorResponse('Failed to open Cursor IDE');
-            }
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error: ${error instanceof Error ? error.message : 'Failed to open Cursor IDE'}`
+                    }
+                ],
+                isError: true
+            };
         }
     }
-});
+};
