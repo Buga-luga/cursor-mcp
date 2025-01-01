@@ -1,58 +1,91 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-const NWS_API_BASE = "https://api.weather.gov";
-const USER_AGENT = "weather-app/1.0";
-const AlertsArgumentsSchema = z.object({
-    state: z.string().length(2),
+import { exec } from 'child_process';
+import { promisify } from 'util';
+const execAsync = promisify(exec);
+const USER_AGENT = "cursor/1.0";
+const OpenCursorSchema = z.object({
+    path: z.string(),
 });
-const ForecastArgumentsSchema = z.object({
-    latitude: z.number().min(-90).max(90),
-    longitude: z.number().min(-180).max(180),
+const IndexCodebaseSchema = z.object({
+    directory: z.string(),
 });
 const server = new Server({
-    name: "weather",
+    name: "cursor",
     version: "1.0.0",
-    port: 3000
+    port: 3010
 }, {
     capabilities: {
         tools: {},
     },
 });
+// Handler for tool calls
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    if (request.params.name === "open-cursor") {
+        try {
+            const { path } = request.params.arguments;
+            const command = `Start-Process "C:\\Users\\${process.env.USERNAME}\\AppData\\Local\\Programs\\Cursor\\Cursor.exe" -ArgumentList "--new-instance","${path}"`;
+            await execAsync(command, { shell: 'powershell' });
+            return {
+                _meta: {},
+                content: [{
+                        type: "text",
+                        text: `Opened ${path} in new Cursor instance`
+                    }]
+            };
+        }
+        catch (err) {
+            const error = err;
+            console.error('Error:', error);
+            return {
+                _meta: {},
+                error: {
+                    code: "EXECUTION_ERROR",
+                    message: `Failed to open Cursor: ${error.message}`
+                }
+            };
+        }
+    }
+    return {
+        _meta: {},
+        error: {
+            code: "UNKNOWN_TOOL",
+            message: `Unknown tool: ${request.params.name}`
+        }
+    };
+});
+// Handler for tool listing
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
             {
-                name: "get-alerts",
-                description: "Get weather alerts for a state",
+                name: "open-cursor",
+                description: "Opens Cursor editor at a specific file or directory",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        state: {
+                        path: {
                             type: "string",
-                            description: "Two-letter state code (e.g. CA, NY)",
+                            description: "Path to file or directory to open in Cursor",
                         },
                     },
-                    required: ["state"],
+                    required: ["path"],
                 },
             },
             {
-                name: "get-forecast",
-                description: "Get weather forecast for a location",
+                name: "index-codebase",
+                description: "Indexes a codebase directory for analysis",
                 inputSchema: {
                     type: "object",
                     properties: {
-                        latitude: {
-                            type: "number",
-                            description: "Latitude of the location",
-                        },
-                        longitude: {
-                            type: "number",
-                            description: "Longitude of the location",
+                        directory: {
+                            type: "string",
+                            description: "Directory path to index",
                         },
                     },
-                    required: ["latitude", "longitude"],
+                    required: ["directory"],
                 },
             },
         ],
@@ -61,7 +94,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    console.error("Weather MCP Server running on stdio");
+    console.error("Cursor MCP Server running on stdio");
 }
 main().catch((error) => {
     console.error("Fatal error in main():", error);
