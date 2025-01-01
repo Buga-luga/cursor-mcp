@@ -112,9 +112,26 @@ export const cursorIndexWatcherTool: MCPTool<WatcherParams> = {
         process.exit(0)
       })
 
-      return createSuccessResponse('Started watching Cursor indexing')
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Started watching Cursor indexing'
+          }
+        ],
+        isError: false
+      }
     } catch (error) {
-      return createErrorResponse(error as Error)
+      console.error('Error in cursor index watcher:', error)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 }

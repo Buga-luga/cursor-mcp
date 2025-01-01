@@ -1,4 +1,3 @@
-import { createSuccessResponse, createErrorResponse } from './tool-framework.js';
 import { z } from 'zod';
 import { watch, readFileSync, existsSync } from 'fs';
 import { join, relative, resolve } from 'path';
@@ -95,10 +94,27 @@ export const cursorIndexWatcherTool = {
                 watcher.close();
                 process.exit(0);
             });
-            return createSuccessResponse('Started watching Cursor indexing');
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: 'Started watching Cursor indexing'
+                    }
+                ],
+                isError: false
+            };
         }
         catch (error) {
-            return createErrorResponse(error);
+            console.error('Error in cursor index watcher:', error);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+                    }
+                ],
+                isError: true
+            };
         }
     }
 };

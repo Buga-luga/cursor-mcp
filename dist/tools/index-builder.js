@@ -1,4 +1,3 @@
-import { createSuccessResponse, createErrorResponse } from './tool-framework.js';
 import { z } from 'zod';
 import { readFileSync, statSync } from 'fs';
 import { relative, resolve } from 'path';
@@ -92,10 +91,27 @@ export const indexBuilderTool = {
                 structure,
                 symbols
             };
-            return createSuccessResponse(index);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: JSON.stringify(index, null, 2)
+                    }
+                ],
+                isError: false
+            };
         }
         catch (error) {
-            return createErrorResponse(error);
+            console.error('Error in index builder:', error);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+                    }
+                ],
+                isError: true
+            };
         }
     }
 };

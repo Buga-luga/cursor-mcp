@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { createSuccessResponse, createErrorResponse } from './tool-framework.js';
+import { createErrorResponse } from './tool-framework.js';
 import { cursorIndexWatcherTool } from './cursor-index-watcher.js';
 import { manualIndexerTool } from './manual-indexer.js';
 // Schema for context manager parameters
@@ -38,14 +38,30 @@ export const contextManagerTool = {
                         lastIndexed: new Date(),
                         format
                     };
-                    return createSuccessResponse(`Context set to sync with Cursor:
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Context set to sync with Cursor:
 Base Path: ${params.basePath}
 Watching Projects: ${params.projectPaths?.join(', ') || 'all'}
-Format: ${format}`);
+Format: ${format}`
+                            }
+                        ],
+                        isError: false
+                    };
                 }
                 case 'manual_index': {
                     if (!params.manualPath) {
-                        return createErrorResponse('manualPath is required for manual indexing');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Error: manualPath is required for manual indexing'
+                                }
+                            ],
+                            isError: true
+                        };
                     }
                     console.log('Setting up manual indexing context...');
                     // Perform manual indexing
@@ -63,12 +79,28 @@ Format: ${format}`);
                     return result;
                 }
                 default:
-                    return createErrorResponse(`Unknown action: ${action}`);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Error: Unknown action: ${action}`
+                            }
+                        ],
+                        isError: true
+                    };
             }
         }
         catch (error) {
             console.error('Error in context manager:', error);
-            return createErrorResponse(error);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+                    }
+                ],
+                isError: true
+            };
         }
     }
 };

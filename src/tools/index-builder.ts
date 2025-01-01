@@ -144,9 +144,26 @@ export const indexBuilderTool: MCPTool<IndexParams> = {
         symbols
       }
 
-      return createSuccessResponse(index)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(index, null, 2)
+          }
+        ],
+        isError: false
+      }
     } catch (error) {
-      return createErrorResponse(error as Error)
+      console.error('Error in index builder:', error)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Error: ${error instanceof Error ? error.message : String(error)}`
+          }
+        ],
+        isError: true
+      }
     }
   }
 } 

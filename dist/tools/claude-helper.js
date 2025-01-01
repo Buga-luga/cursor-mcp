@@ -1,4 +1,3 @@
-import { createSuccessResponse, createErrorResponse } from './tool-framework.js';
 import { z } from 'zod';
 import { getCurrentContext, contextManagerTool } from './context-manager.js';
 import { codebaseSearchTool } from './codebase-search.js';
@@ -44,11 +43,27 @@ You can:
 2. Switch context using 'switch_context'
 3. Index new paths using 'index_new'`;
                     }
-                    return createSuccessResponse(response);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: response
+                            }
+                        ],
+                        isError: false
+                    };
                 }
                 case 'switch_context': {
                     if (!params.path) {
-                        return createErrorResponse('Path is required for switching context');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Error: Path is required for switching context'
+                                }
+                            ],
+                            isError: true
+                        };
                     }
                     // Determine if this should be a cursor sync or manual index
                     if (params.path.toLowerCase().includes('cursor')) {
@@ -66,46 +81,118 @@ You can:
                 }
                 case 'search_code': {
                     if (!context) {
-                        return createSuccessResponse('No active context. Please set up a context first using switch_context or index_new.');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'No active context. Please set up a context first using switch_context or index_new.'
+                                }
+                            ],
+                            isError: false
+                        };
                     }
                     if (!params.query) {
-                        return createErrorResponse('Query is required for searching code');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Error: Query is required for searching code'
+                                }
+                            ],
+                            isError: true
+                        };
                     }
                     const searchResult = await codebaseSearchTool.handler({
                         query: params.query,
                         targetDirectories: context.type === 'cursor' ? context.projectPaths : [context.path]
                     });
-                    return createSuccessResponse(`Search Results for "${params.query}":
-${JSON.stringify(searchResult, null, 2)}`);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Search Results for "${params.query}":
+${JSON.stringify(searchResult, null, 2)}`
+                            }
+                        ],
+                        isError: false
+                    };
                 }
                 case 'index_new': {
                     if (!params.path) {
-                        return createErrorResponse('Path is required for indexing');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Error: Path is required for indexing'
+                                }
+                            ],
+                            isError: true
+                        };
                     }
                     const result = await manualIndexerTool.handler({
                         path: params.path,
                         sendToClaudeFormat: 'markdown'
                     });
-                    return createSuccessResponse(`Successfully indexed new path: ${params.path}
-${result}`);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Successfully indexed new path: ${params.path}
+${result}`
+                            }
+                        ],
+                        isError: false
+                    };
                 }
                 case 'check_indexed': {
                     if (!params.path) {
-                        return createErrorResponse('Path is required for checking index status');
+                        return {
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: 'Error: Path is required for checking index status'
+                                }
+                            ],
+                            isError: true
+                        };
                     }
                     const isIndexed = context && (context.path === params.path ||
                         context.projectPaths?.some(p => params.path.startsWith(p)));
-                    return createSuccessResponse(isIndexed
-                        ? `Yes, ${params.path} is currently indexed and available for searching.`
-                        : `No, ${params.path} is not currently indexed. Use 'index_new' to index it.`);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: isIndexed
+                                    ? `Yes, ${params.path} is currently indexed and available for searching.`
+                                    : `No, ${params.path} is not currently indexed. Use 'index_new' to index it.`
+                            }
+                        ],
+                        isError: false
+                    };
                 }
                 default:
-                    return createErrorResponse(`Unknown intent: ${intent}`);
+                    return {
+                        content: [
+                            {
+                                type: 'text',
+                                text: `Error: Unknown intent: ${intent}`
+                            }
+                        ],
+                        isError: true
+                    };
             }
         }
         catch (error) {
             console.error('Error in Claude helper:', error);
-            return createErrorResponse(error);
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Error: ${error instanceof Error ? error.message : String(error)}`
+                    }
+                ],
+                isError: true
+            };
         }
     }
 };

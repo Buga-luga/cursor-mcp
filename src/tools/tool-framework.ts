@@ -27,7 +27,7 @@ export function createSuccessResponse(message: string | object): MCPResponse {
   return {
     content: [
       {
-        type: 'success',
+        type: 'text',
         text
       }
     ],
@@ -41,8 +41,8 @@ export function createErrorResponse(error: Error | string): MCPResponse {
   return {
     content: [
       {
-        type: 'error',
-        text
+        type: 'text',
+        text: `Error: ${text}`
       }
     ],
     isError: true

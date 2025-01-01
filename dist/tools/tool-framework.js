@@ -4,7 +4,7 @@ export function createSuccessResponse(message) {
     return {
         content: [
             {
-                type: 'success',
+                type: 'text',
                 text
             }
         ],
@@ -17,8 +17,8 @@ export function createErrorResponse(error) {
     return {
         content: [
             {
-                type: 'error',
-                text
+                type: 'text',
+                text: `Error: ${text}`
             }
         ],
         isError: true
