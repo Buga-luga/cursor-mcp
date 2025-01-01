@@ -1,0 +1,43 @@
+{
+  "name": "cursor-mcp-tool",
+  "version": "1.0.24",
+  "description": "Personal MCP Server for opening Cursor IDE",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "cursor-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "sdk"
+  ],
+  "scripts": {
+    "clean": "rimraf dist sdk",
+    "copy-sdk": "shx mkdir -p sdk && shx cp -r typescript-sdk-main/dist/* sdk/",
+    "prebuild": "npm run clean && cd typescript-sdk-main && npm install && npm run build && cd .. && npm run copy-sdk",
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "start": "node ./dist/cli.js"
+  },
+  "dependencies": {
+    "content-type": "^1.0.5",
+    "raw-body": "^3.0.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "rimraf": "^5.0.5",
+    "shx": "^0.3.4",
+    "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "cursor",
+    "ide"
+  ],
+  "author": "Antonio",
+  "license": "MIT"
+}
