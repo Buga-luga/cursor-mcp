@@ -1,6 +1,6 @@
 {
   "name": "cursor-mcp-tool",
-  "version": "1.0.25",
+  "version": "1.0.26",
   "description": "Personal MCP Server for opening Cursor IDE",
   "private": false,
   "type": "module",
