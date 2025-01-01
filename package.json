@@ -20,11 +20,13 @@
     "start": "node ./dist/cli.js"
   },
   "dependencies": {
+    "@dqbd/tiktoken": "^1.0.18",
     "content-type": "^1.0.5",
     "raw-body": "^3.0.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/glob": "^8.1.0",
     "@types/node": "^20.10.4",
     "rimraf": "^5.0.5",
     "shx": "^0.3.4",

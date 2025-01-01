@@ -1,25 +1,42 @@
 import { spawn } from 'child_process'
+import { platform } from 'os'
+import { createMCPTool, createSuccessResponse, createErrorResponse } from './tool-framework.js'
+import { z } from 'zod'
 
-/**
- * Opens Cursor IDE with optional path.
- * If no path is provided, opens a new window.
- * @param path Optional path to open in Cursor
- * @returns {Promise<void>} Resolves when Cursor opens
- */
-export async function openCursor(path?: string): Promise<void> {
-  const args = path ? [path] : ['--new-window']
-  
-  // Use the cursor command which should be installed via
-  // "Shell Command: Install 'cursor' command" from Command Palette
-  spawn('cursor', args, {
-    detached: true,
-    stdio: 'ignore',
-    shell: true
-  }).unref()
-}
+// Optional input schema for path parameter
+const OpenCursorInput = z.object({
+  path: z.string().optional()
+}).optional()
 
-export const openCursorTool = {
+type OpenCursorInputType = z.infer<typeof OpenCursorInput>
+
+// Create the open_cursor tool using the framework
+export const openCursorTool = createMCPTool({
   name: 'open_cursor',
   description: 'Opens Cursor IDE. Can open a specific path or create a new window.',
-  handler: openCursor
-} 
+  inputSchema: OpenCursorInput,
+  handler: async (input?: OpenCursorInputType) => {
+    const isWindows = platform() === 'win32'
+    const cursorPath = isWindows 
+      ? 'C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Cursor\\Cursor.exe'
+      : '/Applications/Cursor.app/Contents/MacOS/Cursor'
+
+    try {
+      const args = input?.path ? [input.path] : ['--new-window']
+      
+      spawn(cursorPath, args, {
+        detached: true,
+        stdio: 'ignore',
+        shell: true
+      }).unref()
+
+      return createSuccessResponse('Successfully opened Cursor IDE')
+    } catch (error) {
+      if (error instanceof Error) {
+        return createErrorResponse(error)
+      } else {
+        return createErrorResponse('Failed to open Cursor IDE')
+      }
+    }
+  }
+}) 
