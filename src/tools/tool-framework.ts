@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Standard response content types
-export type MCPContentType = 'text' | 'error' | 'success'
+export type MCPContentType = 'text'  // Only 'text' is supported by MCP
 
 export interface MCPContent {
   type: MCPContentType

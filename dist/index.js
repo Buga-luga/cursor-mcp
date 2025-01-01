@@ -150,7 +150,12 @@ export async function startServer(basePath, projectPaths) {
             }
             return {
                 _meta: {},
-                result: result.content[0].text,
+                content: [
+                    {
+                        type: 'text',
+                        text: result.content[0].text
+                    }
+                ],
                 isError: result.isError
             };
         }
@@ -159,7 +164,12 @@ export async function startServer(basePath, projectPaths) {
             const errorResult = createErrorResponse(error);
             return {
                 _meta: {},
-                result: errorResult.content[0].text,
+                content: [
+                    {
+                        type: 'text',
+                        text: errorResult.content[0].text
+                    }
+                ],
                 isError: true
             };
         }

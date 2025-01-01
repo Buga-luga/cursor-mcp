@@ -167,7 +167,12 @@ export async function startServer(basePath: string, projectPaths?: string[]) {
 
       return {
         _meta: {},
-        result: result.content[0].text,
+        content: [
+          {
+            type: 'text',
+            text: result.content[0].text
+          }
+        ],
         isError: result.isError
       }
     } catch (error) {
@@ -175,7 +180,12 @@ export async function startServer(basePath: string, projectPaths?: string[]) {
       const errorResult = createErrorResponse(error as Error)
       return {
         _meta: {},
-        result: errorResult.content[0].text,
+        content: [
+          {
+            type: 'text',
+            text: errorResult.content[0].text
+          }
+        ],
         isError: true
       }
     }
