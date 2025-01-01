@@ -1,0 +1,3 @@
+[33m7d5457f[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv1.0.25[m[33m)[m 1.0.25
+[33m1fe8b63[m fix: update tool handlers to properly handle input and return MCPResponse
+[33m1a488c9[m[33m ([m[1;31morigin/main[m[33m)[m Initial commit/ open_cursor tool

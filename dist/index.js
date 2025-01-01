@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { Server } from '../sdk/server/index.js';
 import { StdioServerTransport } from '../sdk/server/stdio.js';
-import { ListToolsRequestSchema } from '../sdk/types.js';
+import { ListToolsRequestSchema, CallToolRequestSchema } from '../sdk/types.js';
 import { readFileSync } from 'fs';
 import { openCursorTool } from './tools/open-cursor.js';
 import { codebaseSearchTool } from './tools/codebase-search.js';
@@ -21,8 +21,7 @@ const version = packageJson.version;
  */
 export async function startServer(basePath, projectPaths) {
     if (!basePath) {
-        console.error('Base path is required');
-        process.exit(1);
+        throw new Error('Base path is required');
     }
     // Keep process alive
     process.stdin.resume();
@@ -73,94 +72,116 @@ export async function startServer(basePath, projectPaths) {
         ]
     }));
     // Handle tool calls
-    async function handleToolCall(request) {
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
         try {
             const toolName = request.method.replace('tools/', '');
+            let result;
             switch (toolName) {
                 case 'open_cursor': {
                     const input = request.params?.parameters || {};
-                    await openCursorTool.handler(input);
-                    return { success: true };
+                    result = await openCursorTool.handler(input);
+                    break;
                 }
                 case 'codebase_search': {
                     if (!codebaseSearchTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = codebaseSearchTool.inputSchema.parse(request.params.parameters);
-                    const result = await codebaseSearchTool.handler(params);
-                    return result;
+                    result = await codebaseSearchTool.handler(params);
+                    break;
                 }
                 case 'build_index': {
                     if (!indexBuilderTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = indexBuilderTool.inputSchema.parse(request.params.parameters);
-                    const indexResult = await indexBuilderTool.handler(params);
-                    return indexResult;
+                    result = await indexBuilderTool.handler(params);
+                    break;
                 }
                 case 'send_to_claude': {
                     if (!sendToClaudeTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = sendToClaudeTool.inputSchema.parse(request.params.parameters);
-                    const sendResult = await sendToClaudeTool.handler(params);
-                    return sendResult;
+                    result = await sendToClaudeTool.handler(params);
+                    break;
                 }
                 case 'watch_cursor_index': {
                     if (!cursorIndexWatcherTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = cursorIndexWatcherTool.inputSchema.parse(request.params.parameters);
-                    await cursorIndexWatcherTool.handler(params);
-                    return { success: true };
+                    result = await cursorIndexWatcherTool.handler(params);
+                    break;
                 }
                 case 'index_path': {
                     if (!manualIndexerTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = manualIndexerTool.inputSchema.parse(request.params.parameters);
-                    const manualResult = await manualIndexerTool.handler(params);
-                    return manualResult;
+                    result = await manualIndexerTool.handler(params);
+                    break;
                 }
                 case 'manage_context': {
                     if (!contextManagerTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = contextManagerTool.inputSchema.parse(request.params.parameters);
-                    const contextResult = await contextManagerTool.handler(params);
-                    return contextResult;
+                    result = await contextManagerTool.handler(params);
+                    break;
                 }
                 case 'claude_helper': {
                     if (!claudeHelperTool.inputSchema) {
-                        return createErrorResponse('Tool schema not defined');
+                        result = createErrorResponse('Tool schema not defined');
+                        break;
                     }
                     const params = claudeHelperTool.inputSchema.parse(request.params.parameters);
-                    const helperResult = await claudeHelperTool.handler(params);
-                    return helperResult;
+                    result = await claudeHelperTool.handler(params);
+                    break;
                 }
                 default:
-                    return createErrorResponse(`Unknown tool: ${toolName}`);
+                    result = createErrorResponse(`Unknown tool: ${toolName}`);
             }
+            return {
+                _meta: {},
+                result: result.content[0].text,
+                isError: result.isError
+            };
         }
         catch (error) {
             console.error('Error handling tool call:', error);
-            return createErrorResponse(error);
+            const errorResult = createErrorResponse(error);
+            return {
+                _meta: {},
+                result: errorResult.content[0].text,
+                isError: true
+            };
         }
-    }
+    });
     try {
         // Start with Cursor sync by default
-        console.log('Setting up initial Cursor sync context...');
-        await contextManagerTool.handler({
+        const contextResult = await contextManagerTool.handler({
             action: 'sync_with_cursor',
             basePath,
             projectPaths,
             format: 'markdown'
         });
-        // Print initial context help
-        const initialHelp = await claudeHelperTool.handler({
+        if (contextResult.isError) {
+            throw new Error(contextResult.content[0].text);
+        }
+        // Get initial context help
+        const helpResult = await claudeHelperTool.handler({
             intent: 'understand_context'
         });
-        console.log('\nAvailable Context:\n' + initialHelp);
+        if (helpResult.isError) {
+            throw new Error(helpResult.content[0].text);
+        }
         const transport = new StdioServerTransport();
         await server.connect(transport);
     }

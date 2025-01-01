@@ -4,7 +4,7 @@ export function createSuccessResponse(message) {
     return {
         content: [
             {
-                type: 'text',
+                type: 'success',
                 text
             }
         ],
@@ -13,30 +13,18 @@ export function createSuccessResponse(message) {
 }
 // Helper to create an error response
 export function createErrorResponse(error) {
-    const errorMessage = error instanceof Error ? error.message : error;
+    const text = error instanceof Error ? error.message : error;
     return {
         content: [
             {
-                type: 'text',
-                text: errorMessage
+                type: 'error',
+                text
             }
         ],
         isError: true
     };
 }
-// Helper to create a new MCP tool
+// Helper to create a tool using the framework
 export function createMCPTool(config) {
-    return {
-        name: config.name,
-        description: config.description,
-        inputSchema: config.inputSchema,
-        handler: async (input) => {
-            try {
-                return await config.handler(input);
-            }
-            catch (error) {
-                return createErrorResponse(error);
-            }
-        }
-    };
+    return config;
 }

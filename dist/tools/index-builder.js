@@ -2,7 +2,8 @@ import { createSuccessResponse, createErrorResponse } from './tool-framework.js'
 import { z } from 'zod';
 import { readFileSync, statSync } from 'fs';
 import { relative, resolve } from 'path';
-import { glob } from 'glob';
+import pkg from 'glob';
+const { glob } = pkg;
 import { computeEmbeddingsTool } from './compute-embeddings.js';
 import { promisify } from 'util';
 const globAsync = promisify(glob);

@@ -27,7 +27,7 @@ export function createSuccessResponse(message: string | object): MCPResponse {
   return {
     content: [
       {
-        type: 'text',
+        type: 'success',
         text
       }
     ],
@@ -36,31 +36,20 @@ export function createSuccessResponse(message: string | object): MCPResponse {
 }
 
 // Helper to create an error response
-export function createErrorResponse(error: string | Error): MCPResponse {
-  const errorMessage = error instanceof Error ? error.message : error
+export function createErrorResponse(error: Error | string): MCPResponse {
+  const text = error instanceof Error ? error.message : error
   return {
     content: [
       {
-        type: 'text',
-        text: errorMessage
+        type: 'error',
+        text
       }
     ],
     isError: true
   }
 }
 
-// Helper to create a new MCP tool
-export function createMCPTool<TInput = void>(config: MCPTool<TInput>): MCPTool<TInput> {
-  return {
-    name: config.name,
-    description: config.description,
-    inputSchema: config.inputSchema,
-    handler: async (input: TInput) => {
-      try {
-        return await config.handler(input)
-      } catch (error) {
-        return createErrorResponse(error as Error)
-      }
-    }
-  }
+// Helper to create a tool using the framework
+export function createMCPTool<TInput>(config: MCPTool<TInput>): MCPTool<TInput> {
+  return config
 } 

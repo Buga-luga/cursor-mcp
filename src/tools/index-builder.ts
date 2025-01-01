@@ -2,7 +2,8 @@ import { MCPTool, createSuccessResponse, createErrorResponse } from './tool-fram
 import { z } from 'zod'
 import { readFileSync, statSync } from 'fs'
 import { join, relative, resolve } from 'path'
-import { glob } from 'glob'
+import pkg from 'glob'
+const { glob } = pkg
 import { computeEmbeddingsTool } from './compute-embeddings.js'
 import { promisify } from 'util'
 
