@@ -6,16 +6,21 @@ interface ShadowWorkspaceOptions {
   code?: string;
   language?: string;
   filename?: string;
-  isolationLevel?: 'full' | 'partial' | 'shared';
   filepath?: string;
+  isolationLevel?: 'full';  // Modified to only allow 'full'
+}
+
+interface CursorShadowWorkspaceConfig {
+  basePath?: string;
+  shadowPath?: string;
 }
 
 export class CursorShadowWorkspaceHandler {
   private workspaceBaseDir: string;
   private workspaceCount: number;
 
-  constructor() {
-    this.workspaceBaseDir = path.join(process.cwd(), 'shadow-workspaces');
+  constructor(config?: CursorShadowWorkspaceConfig) {
+    this.workspaceBaseDir = config?.shadowPath || path.join(process.cwd(), 'shadow-workspaces');
     this.workspaceCount = 0;
     this.initializeWorkspaceDirectory();
   }

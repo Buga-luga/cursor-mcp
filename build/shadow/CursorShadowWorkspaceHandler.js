@@ -4,8 +4,8 @@ import * as fs from 'fs/promises';
 export class CursorShadowWorkspaceHandler {
     workspaceBaseDir;
     workspaceCount;
-    constructor() {
-        this.workspaceBaseDir = path.join(process.cwd(), 'shadow-workspaces');
+    constructor(config) {
+        this.workspaceBaseDir = config?.shadowPath || path.join(process.cwd(), 'shadow-workspaces');
         this.workspaceCount = 0;
         this.initializeWorkspaceDirectory();
     }
