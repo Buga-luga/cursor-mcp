@@ -4,6 +4,8 @@
 
 A Model Context Protocol implementation for Claude Desktop using the MCP TypeScript SDK.
 
+<a href="https://glama.ai/mcp/servers/4fg1gxbcex"><img width="380" height="200" src="https://glama.ai/mcp/servers/4fg1gxbcex/badge" alt="Cursor Server MCP server" /></a>
+
 ## Features
 @@ -40,4 +42,4 @@ cursor-mcp/
 - Follow TypeScript best practices
