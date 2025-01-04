@@ -56,7 +56,7 @@ export class MCPMessageHandler {
    * {
    *   method: "call_tool",
    *   params: {
-   *     name: "open_cursor",
+   *     name: "run_cursor",
    *     arguments: {
    *       filename: "example.ts",
    *       code: "console.log('hello');"

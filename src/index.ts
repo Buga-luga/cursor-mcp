@@ -8,25 +8,32 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 /**
- * Zod schema for validating open_cursor tool parameters
+ * Zod schema for validating run_cursor tool parameters
  * Defines the expected structure and types of the tool's input
  * 
  * @property {string} [path] - Path to existing file/directory
  * @property {string} [code] - Code content to create
  * @property {string} [language] - Programming language
  * @property {string} [filename] - Name for new file
+ * @property {Array<{code: string, filename: string}>} [dependencies] - Additional files needed
+ * @property {string} [entryPoint] - Main file to run if different from the primary file
  */
-const CursorOpenSchema = z.object({
+const CursorRunSchema = z.object({
   path: z.string().optional(),
   code: z.string().optional(),
   language: z.string().optional(),
   filename: z.string().optional(),
+  dependencies: z.array(z.object({
+    code: z.string(),
+    filename: z.string()
+  })).optional(),
+  entryPoint: z.string().optional()
 });
 
 /**
  * Initialize MCP server with tool definitions and capabilities
  * This server implements the Model Context Protocol for Cursor IDE integration
- * Configures the open_cursor tool for creating and managing isolated workspaces
+ * Configures the run_cursor tool for executing code with dependencies
  */
 const server = new Server(
   {
@@ -37,27 +44,49 @@ const server = new Server(
   {
     capabilities: {
       tools: {
-        "open_cursor": {
-          name: "open_cursor",
-          description: "Opens Cursor editor in a shadow workspace with full isolation",
+        "run_cursor": {
+          name: "run_cursor",
+          description: "Executes code with support for multiple files and dependencies",
           inputSchema: {
             type: "object",
             properties: {
               path: {
                 type: "string", 
-                description: "Path to file or directory to open in Cursor (optional)",
+                description: "Path to file or directory to run (optional)",
               },
               code: {
                 type: "string",
-                description: "Code to be generated in the workspace (optional)",
+                description: "Main code to execute (optional)",
               },
               language: {
                 type: "string",
-                description: "Programming language of the generated code",
+                description: "Programming language of the code",
               },
               filename: {
                 type: "string",
-                description: "Name for the generated file",
+                description: "Name for the main file",
+              },
+              dependencies: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    code: {
+                      type: "string",
+                      description: "Content of the dependency file"
+                    },
+                    filename: {
+                      type: "string",
+                      description: "Name of the dependency file"
+                    }
+                  },
+                  required: ["code", "filename"]
+                },
+                description: "Additional files needed for the code to run"
+              },
+              entryPoint: {
+                type: "string",
+                description: "Main file to run if different from the primary file"
               }
             },
             required: [],
@@ -74,10 +103,7 @@ initializeWorkspacePaths();
 const workspaceConfig = getWorkspaceConfig();
 
 // Initialize handler for isolated workspaces
-const shadowHandler = new CursorShadowWorkspaceHandler({
-  basePath: workspaceConfig.basePath,
-  shadowPath: workspaceConfig.shadowStoragePath
-});
+const shadowHandler = new CursorShadowWorkspaceHandler(workspaceConfig.shadowStoragePath);
 
 /**
  * Ensures a directory exists, creating it if necessary
@@ -94,7 +120,7 @@ async function ensureDirectoryExists(dirPath: string) {
 
 /**
  * Handles incoming tool call requests
- * Currently supports the 'open_cursor' tool for creating and opening files in isolated workspaces
+ * Currently supports the 'run_cursor' tool for creating and opening files in isolated workspaces
  * 
  * Tool capabilities:
  * 1. Create new files with provided code
@@ -103,9 +129,9 @@ async function ensureDirectoryExists(dirPath: string) {
  */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
-    if (request.params.name === "open_cursor") {
+    if (request.params.name === "run_cursor") {
       // Validate and parse the tool parameters
-      const params = CursorOpenSchema.parse(request.params.arguments);
+      const params = CursorRunSchema.parse(request.params.arguments);
       let filepath = params.path;
 
       // Handle code generation if code content is provided
@@ -115,30 +141,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           const filename = params.filename || `file.${params.language || 'txt'}`;
           filepath = path.join(process.cwd(), filename);
         }
-
-        // Ensure target directory exists
-        const dirPath = path.dirname(filepath);
-        await ensureDirectoryExists(dirPath);
-
-        // Write the code to file
-        await fs.writeFile(filepath, params.code, 'utf-8');
       }
       
-      // Create and open isolated workspace
-      const result = await shadowHandler.openWithGeneratedCode({
+      // Execute the code
+      const result = await shadowHandler.runCode({
         code: params.code,
-        language: params.language,
         filename: params.filename,
         filepath: filepath,
-        isolationLevel: 'full'
+        dependencies: params.dependencies,
+        entryPoint: params.entryPoint
       });
       
-      // Return success response
+      // Return success response with output
       return {
         _meta: {},
         content: [{
           type: "text",
-          text: `Opened ${params.filename || filepath} in shadow workspace (ID: ${result.workspaceId})`
+          text: result.success ? 
+            `Execution successful:\n${result.output}` :
+            `Execution failed:\n${result.error}\n\nOutput:\n${result.output}`
         }]
       };
     }
@@ -173,8 +194,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "open_cursor",
-        description: "Opens Cursor editor in a shadow workspace with full isolation",
+        name: "run_cursor",
+        description: "Opens Cursor editor in an invisible shadow workspace with full isolation",
         inputSchema: {
           type: "object",
           properties: {
