@@ -6,14 +6,22 @@ import { CursorShadowWorkspaceHandler } from "./shadow/CursorShadowWorkspaceHand
 import { initializeWorkspacePaths, getWorkspaceConfig } from "./utils/workspaceConfig.js";
 import * as fs from 'fs/promises';
 import * as path from 'path';
-// Schema for open_cursor tool parameters
+
+/**
+ * Zod schema for validating open_cursor tool parameters
+ * Defines the expected structure and types of the tool's input
+ */
 const CursorOpenSchema = z.object({
-    path: z.string().optional(),
-    code: z.string().optional(),
-    language: z.string().optional(),
-    filename: z.string().optional(),
+    path: z.string().optional(),      // Path to existing file/directory
+    code: z.string().optional(),      // Code content to create
+    language: z.string().optional(),  // Programming language
+    filename: z.string().optional(),  // Name for new file
 });
-// Create server instance
+
+/**
+ * Initialize MCP server with tool definitions and capabilities
+ * This server implements the Model Context Protocol for Cursor IDE integration
+ */
 const server = new Server({
     name: "cursor",
     version: "1.0.0",
@@ -51,15 +59,21 @@ const server = new Server({
         }
     }
 });
-// Initialize workspace paths
+
+// Set up workspace infrastructure
 initializeWorkspacePaths();
 const workspaceConfig = getWorkspaceConfig();
-// Initialize shadow workspace handler
+
+// Initialize handler for isolated workspaces
 const shadowHandler = new CursorShadowWorkspaceHandler({
     basePath: workspaceConfig.basePath,
     shadowPath: workspaceConfig.shadowStoragePath
 });
-// Helper function to ensure directory exists
+
+/**
+ * Ensures a directory exists, creating it if necessary
+ * @param {string} dirPath - Path to the directory to check/create
+ */
 async function ensureDirectoryExists(dirPath) {
     try {
         await fs.access(dirPath);
@@ -68,25 +82,35 @@ async function ensureDirectoryExists(dirPath) {
         await fs.mkdir(dirPath, { recursive: true });
     }
 }
-// Handler for tool calls
+
+/**
+ * Handles incoming tool call requests
+ * Currently supports the 'open_cursor' tool for creating and opening files in isolated workspaces
+ */
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
         if (request.params.name === "open_cursor") {
+            // Validate and parse the tool parameters
             const params = CursorOpenSchema.parse(request.params.arguments);
             let filepath = params.path;
-            // If code is provided, write it to the specified path or generate one
+
+            // Handle code generation if code content is provided
             if (params.code) {
-                // If no path is provided, use filename or generate one
+                // Generate filepath if not provided
                 if (!filepath) {
                     const filename = params.filename || `file.${params.language || 'txt'}`;
                     filepath = path.join(process.cwd(), filename);
                 }
-                // Ensure the directory exists
+
+                // Ensure target directory exists
                 const dirPath = path.dirname(filepath);
                 await ensureDirectoryExists(dirPath);
-                // Write the file
+
+                // Write the code to file
                 await fs.writeFile(filepath, params.code, 'utf-8');
             }
+
+            // Create and open isolated workspace
             const result = await shadowHandler.openWithGeneratedCode({
                 code: params.code,
                 language: params.language,
@@ -94,14 +118,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 filepath: filepath,
                 isolationLevel: 'full'
             });
+
+            // Return success response
             return {
                 _meta: {},
                 content: [{
-                        type: "text",
-                        text: `Opened ${params.filename || filepath} in shadow workspace (ID: ${result.workspaceId})`
-                    }]
+                    type: "text",
+                    text: `Opened ${params.filename || filepath} in shadow workspace (ID: ${result.workspaceId})`
+                }]
             };
         }
+
+        // Handle unknown tool requests
         return {
             _meta: {},
             error: {
@@ -122,7 +150,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
     }
 });
-// Handler for tool listing
+
+/**
+ * Handles tool listing requests
+ * Returns metadata about available tools and their capabilities
+ */
 server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
         tools: [
@@ -156,6 +188,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         ]
     };
 });
+
+/**
+ * Main application entry point
+ * Sets up the MCP server with stdio transport
+ * Configures error handling and graceful shutdown
+ */
 async function main() {
     try {
         const transport = new StdioServerTransport();
@@ -168,14 +206,19 @@ async function main() {
         process.exit(1);
     }
 }
+
+// Global error handlers for uncaught errors
 process.on('uncaughtException', (error) => {
     console.error('[MCP-Cursor] Uncaught Exception:', error);
     process.exit(1);
 });
+
 process.on('unhandledRejection', (reason, promise) => {
     console.error('[MCP-Cursor] Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
 });
+
+// Start the server
 main().catch((error) => {
     console.error("[MCP-Cursor] Fatal error in main():", error);
     process.exit(1);
