@@ -6,18 +6,6 @@
 import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
-/**
- * Manages isolated workspaces for secure code execution
- * Provides functionality for workspace creation, setup, and cleanup
- *
- * Features:
- * - Isolated workspace creation
- * - Multi-language support
- * - Framework detection
- * - Dependency management
- * - Automatic entry point detection
- * - Secure execution environment
- */
 export class CursorShadowWorkspaceHandler {
     workspaceBaseDir;
     workspaceCount;
@@ -63,18 +51,21 @@ export class CursorShadowWorkspaceHandler {
      * @param {string} extension - File extension to determine setup
      */
     async setupNodeProject(workspacePath, extension) {
-        const packageJsonPath = path.join(workspacePath, 'package.json');
+        // Create package.json with necessary dependencies
         const packageJson = {
-            name: 'shadow-workspace',
-            version: '1.0.0',
-            private: true,
-            scripts: {
-                start: 'node',
-                build: 'tsc'
-            },
-            dependencies: {
-                typescript: '^4.9.0',
-                '@types/node': '^16.0.0'
+            "name": "shadow-workspace",
+            "version": "1.0.0",
+            "type": "module",
+            "dependencies": {
+                "@babel/core": "^7.22.0",
+                "@babel/preset-react": "^7.22.0",
+                "@babel/preset-typescript": "^7.22.0",
+                "@babel/register": "^7.22.0",
+                "@babel/preset-env": "^7.22.0",
+                "ts-node": "^10.9.1",
+                "typescript": "^5.0.0",
+                "react": "^18.2.0",
+                "react-dom": "^18.2.0"
             }
         };
         await fs.writeFile(path.join(workspacePath, 'package.json'), JSON.stringify(packageJson, null, 2));
@@ -108,16 +99,33 @@ export class CursorShadowWorkspaceHandler {
      * @returns {string|null} Command to execute the file or null if unsupported
      */
     getRunCommand(extension, filePath) {
+        // Get the workspace path from the file path
+        const workspacePath = path.dirname(filePath);
         const commands = {
+            // Node.js and TypeScript
             '.js': `node "${filePath}"`,
-            '.ts': `npx ts-node "${filePath}"`,
-            '.tsx': `npx ts-node "${filePath}"`,
-            '.jsx': `npx babel-node "${filePath}"`,
+            '.ts': `ts-node "${filePath}"`,
+            '.mjs': `node "${filePath}"`,
+            '.cjs': `node "${filePath}"`,
+            // React/JSX/TSX
+            '.jsx': `node -r @babel/register "${filePath}"`,
+            '.tsx': `ts-node --compiler-options '{"jsx":"react"}' "${filePath}"`,
+            // Python
             '.py': `python "${filePath}"`,
+            '.py3': `python3 "${filePath}"`,
+            '.pyw': `pythonw "${filePath}"`,
+            // Shell scripts
+            '.sh': `bash "${filePath}"`,
+            '.bash': `bash "${filePath}"`,
+            '.zsh': `zsh "${filePath}"`,
+            '.bat': `"${filePath}"`,
+            '.cmd': `"${filePath}"`,
+            '.ps1': `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${filePath}"`,
+            // Other languages
             '.rb': `ruby "${filePath}"`,
             '.php': `php "${filePath}"`,
-            '.java': `java "${filePath}"`,
-            '.cs': `dotnet run "${filePath}"`,
+            '.pl': `perl "${filePath}"`,
+            '.r': `Rscript "${filePath}"`,
             '.go': `go run "${filePath}"`,
             '.java': `java "${filePath}"`,
             '.groovy': `groovy "${filePath}"`,
@@ -315,6 +323,258 @@ export class CursorShadowWorkspaceHandler {
         }
         return null;
     }
+    async detectAndRunSetupCommands(workspacePath) {
+        const setupIndicators = [
+            // Python
+            {
+                file: 'requirements.txt',
+                commands: ['pip install -r requirements.txt'],
+                runCommands: {
+                    build: ['python setup.py build'],
+                    start: ['python manage.py runserver', 'flask run', 'uvicorn main:app']
+                }
+            },
+            {
+                file: 'Pipfile',
+                commands: ['pipenv install'],
+                runCommands: {
+                    start: ['pipenv run python manage.py runserver', 'pipenv run flask run']
+                }
+            },
+            // Node.js
+            {
+                file: 'package.json',
+                commands: ['npm install'],
+                subDirs: ['frontend', 'client', 'web', 'ui'].map(dir => ({
+                    path: dir,
+                    commands: [`cd ${dir} && npm install`],
+                    runCommands: {
+                        build: ['npm run build'],
+                        start: ['npm start', 'npm run dev']
+                    }
+                })),
+                runCommands: {
+                    build: ['npm run build'],
+                    start: ['npm start', 'npm run dev']
+                }
+            },
+            {
+                file: 'yarn.lock',
+                commands: ['yarn install'],
+                runCommands: {
+                    build: ['yarn build'],
+                    start: ['yarn start', 'yarn dev']
+                }
+            },
+            {
+                file: 'pnpm-lock.yaml',
+                commands: ['pnpm install'],
+                runCommands: {
+                    build: ['pnpm run build'],
+                    start: ['pnpm start', 'pnpm dev']
+                }
+            },
+            // .NET
+            {
+                file: '*.csproj',
+                commands: ['dotnet restore'],
+                runCommands: {
+                    build: ['dotnet build'],
+                    start: ['dotnet run']
+                }
+            },
+            // Java/Kotlin
+            {
+                file: 'pom.xml',
+                commands: ['mvn install'],
+                runCommands: {
+                    build: ['mvn package'],
+                    start: ['mvn spring-boot:run']
+                }
+            },
+            {
+                file: 'build.gradle',
+                commands: ['gradle build'],
+                runCommands: {
+                    build: ['gradle build'],
+                    start: ['gradle bootRun']
+                }
+            },
+            // Rust
+            {
+                file: 'Cargo.toml',
+                commands: ['cargo build'],
+                runCommands: {
+                    build: ['cargo build --release'],
+                    start: ['cargo run']
+                }
+            },
+            // Go
+            {
+                file: 'go.mod',
+                commands: ['go mod download'],
+                runCommands: {
+                    build: ['go build'],
+                    start: ['go run .']
+                }
+            }
+        ];
+        // Track what commands have been run
+        const commandsRun = new Set();
+        // First pass: Run all setup commands
+        for (const indicator of setupIndicators) {
+            const files = await this.findFiles(workspacePath, indicator.file);
+            if (files.length > 0) {
+                for (const command of indicator.commands) {
+                    if (!commandsRun.has(command)) {
+                        try {
+                            console.log(`Running setup command: ${command}`);
+                            await this.executeCommand(`cd "${workspacePath}" && ${command}`);
+                            commandsRun.add(command);
+                        }
+                        catch (error) {
+                            console.error(`Error running setup command ${command}:`, error);
+                        }
+                    }
+                }
+                // Handle subdirectories
+                if (indicator.subDirs) {
+                    for (const subDir of indicator.subDirs) {
+                        const subDirPath = path.join(workspacePath, subDir.path);
+                        if (await fs.access(subDirPath).then(() => true).catch(() => false)) {
+                            // Check for package.json in subdirectory
+                            const packageJsonPath = path.join(subDirPath, 'package.json');
+                            let scripts = {};
+                            try {
+                                const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+                                scripts = packageJson.scripts || {};
+                            }
+                            catch {
+                                // No package.json or invalid JSON
+                            }
+                            // Run install
+                            for (const command of subDir.commands) {
+                                if (!commandsRun.has(command)) {
+                                    try {
+                                        console.log(`Running setup command in ${subDir.path}: ${command}`);
+                                        await this.executeCommand(`cd "${workspacePath}" && ${command}`);
+                                        commandsRun.add(command);
+                                    }
+                                    catch (error) {
+                                        console.error(`Error running setup command ${command} in ${subDir.path}:`, error);
+                                    }
+                                }
+                            }
+                            // Run build if needed
+                            if (scripts.build || scripts['build:prod']) {
+                                const buildCmd = `cd ${subDir.path} && npm run ${scripts['build:prod'] ? 'build:prod' : 'build'}`;
+                                if (!commandsRun.has(buildCmd)) {
+                                    try {
+                                        console.log(`Running build in ${subDir.path}`);
+                                        await this.executeCommand(`cd "${workspacePath}" && ${buildCmd}`);
+                                        commandsRun.add(buildCmd);
+                                    }
+                                    catch (error) {
+                                        console.error(`Error running build in ${subDir.path}:`, error);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Check for specific build/start commands in package.json
+                if (indicator.file === 'package.json') {
+                    try {
+                        const packageJson = JSON.parse(await fs.readFile(path.join(workspacePath, 'package.json'), 'utf-8'));
+                        const scripts = packageJson.scripts || {};
+                        // Run build if it exists and hasn't been run
+                        if (scripts.build && !commandsRun.has('npm run build')) {
+                            try {
+                                console.log('Running build command from package.json');
+                                await this.executeCommand(`cd "${workspacePath}" && npm run build`);
+                                commandsRun.add('npm run build');
+                            }
+                            catch (error) {
+                                console.error('Error running build command:', error);
+                            }
+                        }
+                        // Store available run commands for later
+                        if (scripts.start || scripts.dev) {
+                            indicator.runCommands = {
+                                ...indicator.runCommands,
+                                start: [
+                                    ...(scripts.dev ? ['npm run dev'] : []),
+                                    ...(scripts.start ? ['npm start'] : [])
+                                ]
+                            };
+                        }
+                    }
+                    catch (error) {
+                        console.error('Error parsing package.json:', error);
+                    }
+                }
+            }
+        }
+    }
+    async getStartCommand(workspacePath) {
+        // Check package.json first
+        try {
+            const packageJsonPath = path.join(workspacePath, 'package.json');
+            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+            const scripts = packageJson.scripts || {};
+            // Prefer dev script for development
+            if (scripts.dev)
+                return `npm run dev`;
+            if (scripts.start)
+                return `npm start`;
+        }
+        catch {
+            // No package.json or invalid JSON
+        }
+        // Check for other common patterns
+        const startPatterns = [
+            { file: 'manage.py', command: 'python manage.py runserver' },
+            { file: 'app.py', command: 'flask run' },
+            { file: 'main.go', command: 'go run main.go' },
+            { file: 'Cargo.toml', command: 'cargo run' },
+            { file: 'gradlew', command: './gradlew bootRun' },
+            { file: 'mvnw', command: './mvnw spring-boot:run' }
+        ];
+        for (const pattern of startPatterns) {
+            if (await fs.access(path.join(workspacePath, pattern.file)).then(() => true).catch(() => false)) {
+                return pattern.command;
+            }
+        }
+        return null;
+    }
+    async findFiles(dir, pattern) {
+        const files = await fs.readdir(dir, { withFileTypes: true });
+        const results = [];
+        for (const file of files) {
+            const fullPath = path.join(dir, file.name);
+            if (file.isDirectory()) {
+                results.push(...await this.findFiles(fullPath, pattern));
+            }
+            else if (this.matchesPattern(file.name, pattern)) {
+                results.push(fullPath);
+            }
+        }
+        return results;
+    }
+    matchesPattern(filename, pattern) {
+        if (pattern.startsWith('*.')) {
+            return filename.endsWith(pattern.slice(1));
+        }
+        return filename === pattern;
+    }
+    async hasAnyFile(dir, patterns) {
+        for (const pattern of patterns) {
+            const files = await this.findFiles(dir, pattern);
+            if (files.length > 0)
+                return true;
+        }
+        return false;
+    }
     /**
      * Executes code in an isolated workspace
      * Main public method for running code with dependencies
@@ -412,8 +672,16 @@ export class CursorShadowWorkspaceHandler {
      */
     async executeCommand(command) {
         return new Promise((resolve, reject) => {
-            exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-                if (error && !stderr) {
+            const childProcess = exec(command, {
+                maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+                timeout: 30000, // 30 second timeout
+                env: {
+                    ...process.env,
+                    FORCE_COLOR: '1',
+                    TERM: 'xterm-256color'
+                }
+            }, (error, stdout, stderr) => {
+                if (error && !error.message.includes('exit code 1')) {
                     reject(error);
                 }
                 else {
@@ -449,12 +717,13 @@ export class CursorShadowWorkspaceHandler {
      * @param {string} workspaceId - ID of the workspace to clean
      */
     async cleanup(workspaceId) {
-        const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
         try {
+            const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
             await fs.rm(workspacePath, { recursive: true, force: true });
         }
         catch (error) {
-            console.error(`Error cleaning up workspace ${workspaceId}:`, error);
+            console.error('Error cleaning up workspace:', error);
+            throw error;
         }
     }
 }
