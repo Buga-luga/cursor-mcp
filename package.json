@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "weather": "./build/index.js"
+    "mcp-cursor": "./build/index.js"
   },
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "tsc",
     "start": "node build/index.js",
     "dev": "ts-node-dev --respawn src/index.ts"
   },
@@ -14,9 +14,10 @@
     "build"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.1.0",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.2.0",
+    "robotjs": "^0.6.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
   },

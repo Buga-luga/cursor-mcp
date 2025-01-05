@@ -1,14 +1,28 @@
+/**
+ * @fileoverview Handles isolated workspace creation and management for code execution.
+ * Provides functionality to create, manage, and clean up shadow workspaces for secure code execution.
+ * Supports multiple programming languages and frameworks with automatic entry point detection.
+ */
 import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 export class CursorShadowWorkspaceHandler {
     workspaceBaseDir;
     workspaceCount;
+    /**
+     * Creates a new CursorShadowWorkspaceHandler instance
+     * @param {string} [shadowPath] - Base directory for shadow workspaces
+     */
     constructor(shadowPath) {
         this.workspaceBaseDir = shadowPath || path.join(process.cwd(), 'shadow-workspaces');
         this.workspaceCount = 0;
         this.initializeWorkspaceDirectory();
     }
+    /**
+     * Initializes the base workspace directory
+     * Creates the directory if it doesn't exist
+     * @private
+     */
     async initializeWorkspaceDirectory() {
         try {
             await fs.mkdir(this.workspaceBaseDir, { recursive: true });
@@ -17,12 +31,25 @@ export class CursorShadowWorkspaceHandler {
             console.error('Error creating workspace directory:', error);
         }
     }
+    /**
+     * Creates a new isolated workspace directory
+     * @private
+     * @returns {Promise<string>} Path to the created workspace
+     */
     async createWorkspaceDirectory() {
         const workspaceId = `workspace_${++this.workspaceCount}`;
         const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
         await fs.mkdir(workspacePath, { recursive: true });
         return workspacePath;
     }
+    /**
+     * Sets up a Node.js project environment in the workspace
+     * Creates package.json and babel config for JS/TS/React support
+     *
+     * @private
+     * @param {string} workspacePath - Path to the workspace
+     * @param {string} extension - File extension to determine setup
+     */
     async setupNodeProject(workspacePath, extension) {
         // Create package.json with necessary dependencies
         const packageJson = {
@@ -54,6 +81,23 @@ export class CursorShadowWorkspaceHandler {
         // Install dependencies
         await this.executeCommand(`cd "${workspacePath}" && npm install`);
     }
+    /**
+     * Gets the appropriate command to run a file based on its extension
+     * Supports multiple languages and frameworks
+     *
+     * Supported Languages:
+     * - JavaScript/TypeScript (Node.js)
+     * - Python
+     * - Shell scripts
+     * - Ruby, PHP, Perl, R
+     * - Go, Java, Groovy, Scala, Kotlin
+     * - C++, C, Rust
+     *
+     * @private
+     * @param {string} extension - File extension
+     * @param {string} filePath - Path to the file
+     * @returns {string|null} Command to execute the file or null if unsupported
+     */
     getRunCommand(extension, filePath) {
         // Get the workspace path from the file path
         const workspacePath = path.dirname(filePath);
@@ -100,6 +144,25 @@ export class CursorShadowWorkspaceHandler {
         };
         return commands[extension] || null;
     }
+    /**
+     * Detects the main entry point in a workspace
+     * Supports multiple frameworks and project structures
+     *
+     * Detection Priority:
+     * 1. Framework-specific configs (next.config.js, vite.config.js, etc.)
+     * 2. Common entry points (index.ts, main.py, etc.)
+     * 3. Package.json main field
+     *
+     * Supported Frameworks:
+     * - Next.js/React/Vue
+     * - Node.js/TypeScript
+     * - Python (Django, Flask)
+     * - Rust/Go/Java
+     *
+     * @private
+     * @param {string} workspacePath - Path to the workspace
+     * @returns {Promise<string|null>} Path to the entry point or null if not found
+     */
     async detectEntryPoint(workspacePath) {
         // Common entry point patterns by priority
         const entryPointPatterns = [
@@ -512,9 +575,25 @@ export class CursorShadowWorkspaceHandler {
         }
         return false;
     }
+    /**
+     * Executes code in an isolated workspace
+     * Main public method for running code with dependencies
+     *
+     * Process:
+     * 1. Creates isolated workspace
+     * 2. Sets up project environment
+     * 3. Writes code and dependencies
+     * 4. Detects/uses entry point
+     * 5. Executes code
+     * 6. Returns results
+     *
+     * @param {ShadowWorkspaceOptions} options - Configuration options
+     * @returns {Promise<{success: boolean, output: string, error?: string}>}
+     */
     async runCode(options) {
+        let workspacePath = null;
         try {
-            const workspacePath = await this.createWorkspaceDirectory();
+            workspacePath = await this.createWorkspaceDirectory();
             let mainFilePath;
             // Write all dependency files first
             if (options.dependencies?.length) {
@@ -543,17 +622,9 @@ export class CursorShadowWorkspaceHandler {
             if (options.entryPoint) {
                 fileToRun = path.join(workspacePath, options.entryPoint);
             }
-            else if (options.detectEntryPoint) {
-                const detectedEntry = await this.detectEntryPoint(workspacePath);
-                if (detectedEntry) {
-                    fileToRun = detectedEntry;
-                }
-                else {
-                    fileToRun = mainFilePath;
-                }
-            }
             else {
-                fileToRun = mainFilePath;
+                const detectedEntry = await this.detectEntryPoint(workspacePath);
+                fileToRun = detectedEntry || mainFilePath;
             }
             // Execute the code directly without opening Cursor UI
             const extension = path.extname(fileToRun).toLowerCase();
@@ -566,12 +637,12 @@ export class CursorShadowWorkspaceHandler {
                 await this.setupNodeProject(workspacePath, extension);
             }
             const { stdout, stderr } = await this.executeCommand(runCommand);
-            // Clean up the workspace immediately after execution
-            await this.cleanup(path.basename(workspacePath));
+            // Determine success based on both stderr and exit code
+            const success = !stderr || stderr.trim().length === 0;
             return {
                 output: stdout,
                 error: stderr,
-                success: !stderr,
+                success,
                 entryPoint: fileToRun
             };
         }
@@ -579,7 +650,26 @@ export class CursorShadowWorkspaceHandler {
             console.error('Error in runCode:', error);
             throw error;
         }
+        finally {
+            // Clean up workspace in finally block to ensure it happens
+            if (workspacePath) {
+                try {
+                    await this.cleanup(path.basename(workspacePath));
+                }
+                catch (cleanupError) {
+                    console.error('Error during workspace cleanup:', cleanupError);
+                }
+            }
+        }
     }
+    /**
+     * Executes a shell command in the workspace
+     * Handles command execution and output collection
+     *
+     * @private
+     * @param {string} command - Command to execute
+     * @returns {Promise<{stdout: string, stderr: string}>}
+     */
     async executeCommand(command) {
         return new Promise((resolve, reject) => {
             const childProcess = exec(command, {
@@ -620,6 +710,12 @@ export class CursorShadowWorkspaceHandler {
             });
         });
     }
+    /**
+     * Cleans up a workspace after execution
+     * Removes temporary files and directories
+     *
+     * @param {string} workspaceId - ID of the workspace to clean
+     */
     async cleanup(workspaceId) {
         try {
             const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
