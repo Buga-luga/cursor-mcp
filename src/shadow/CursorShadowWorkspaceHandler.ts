@@ -26,22 +26,10 @@ interface ShadowWorkspaceOptions {
         code: string;
         filename: string;
     }>;
-    entryPoint?: string;
-    detectEntryPoint?: boolean;
+    entryPoint?: string; // Specify which file to run if multiple files exist
+    detectEntryPoint?: boolean; // Whether to automatically detect the entry point
 }
 
-/**
- * Manages isolated workspaces for secure code execution
- * Provides functionality for workspace creation, setup, and cleanup
- * 
- * Features:
- * - Isolated workspace creation
- * - Multi-language support
- * - Framework detection
- * - Dependency management
- * - Automatic entry point detection
- * - Secure execution environment
- */
 export class CursorShadowWorkspaceHandler {
     private workspaceBaseDir: string;
     private workspaceCount: number;
@@ -394,6 +382,272 @@ export class CursorShadowWorkspaceHandler {
         return null;
     }
 
+    private async detectAndRunSetupCommands(workspacePath: string): Promise<void> {
+        const setupIndicators = [
+            // Python
+            { 
+                file: 'requirements.txt', 
+                commands: ['pip install -r requirements.txt'],
+                runCommands: {
+                    build: ['python setup.py build'],
+                    start: ['python manage.py runserver', 'flask run', 'uvicorn main:app']
+                }
+            },
+            { 
+                file: 'Pipfile', 
+                commands: ['pipenv install'],
+                runCommands: {
+                    start: ['pipenv run python manage.py runserver', 'pipenv run flask run']
+                }
+            },
+            
+            // Node.js
+            { 
+                file: 'package.json', 
+                commands: ['npm install'],
+                subDirs: ['frontend', 'client', 'web', 'ui'].map(dir => ({
+                    path: dir,
+                    commands: [`cd ${dir} && npm install`],
+                    runCommands: {
+                        build: ['npm run build'],
+                        start: ['npm start', 'npm run dev']
+                    }
+                })),
+                runCommands: {
+                    build: ['npm run build'],
+                    start: ['npm start', 'npm run dev']
+                }
+            },
+            { 
+                file: 'yarn.lock', 
+                commands: ['yarn install'],
+                runCommands: {
+                    build: ['yarn build'],
+                    start: ['yarn start', 'yarn dev']
+                }
+            },
+            { 
+                file: 'pnpm-lock.yaml', 
+                commands: ['pnpm install'],
+                runCommands: {
+                    build: ['pnpm run build'],
+                    start: ['pnpm start', 'pnpm dev']
+                }
+            },
+            
+            // .NET
+            { 
+                file: '*.csproj', 
+                commands: ['dotnet restore'],
+                runCommands: {
+                    build: ['dotnet build'],
+                    start: ['dotnet run']
+                }
+            },
+            
+            // Java/Kotlin
+            { 
+                file: 'pom.xml', 
+                commands: ['mvn install'],
+                runCommands: {
+                    build: ['mvn package'],
+                    start: ['mvn spring-boot:run']
+                }
+            },
+            { 
+                file: 'build.gradle', 
+                commands: ['gradle build'],
+                runCommands: {
+                    build: ['gradle build'],
+                    start: ['gradle bootRun']
+                }
+            },
+            
+            // Rust
+            { 
+                file: 'Cargo.toml', 
+                commands: ['cargo build'],
+                runCommands: {
+                    build: ['cargo build --release'],
+                    start: ['cargo run']
+                }
+            },
+            
+            // Go
+            { 
+                file: 'go.mod', 
+                commands: ['go mod download'],
+                runCommands: {
+                    build: ['go build'],
+                    start: ['go run .']
+                }
+            }
+        ];
+
+        // Track what commands have been run
+        const commandsRun = new Set<string>();
+
+        // First pass: Run all setup commands
+        for (const indicator of setupIndicators) {
+            const files = await this.findFiles(workspacePath, indicator.file);
+            if (files.length > 0) {
+                for (const command of indicator.commands) {
+                    if (!commandsRun.has(command)) {
+                        try {
+                            console.log(`Running setup command: ${command}`);
+                            await this.executeCommand(`cd "${workspacePath}" && ${command}`);
+                            commandsRun.add(command);
+                        } catch (error) {
+                            console.error(`Error running setup command ${command}:`, error);
+                        }
+                    }
+                }
+
+                // Handle subdirectories
+                if (indicator.subDirs) {
+                    for (const subDir of indicator.subDirs) {
+                        const subDirPath = path.join(workspacePath, subDir.path);
+                        if (await fs.access(subDirPath).then(() => true).catch(() => false)) {
+                            // Check for package.json in subdirectory
+                            const packageJsonPath = path.join(subDirPath, 'package.json');
+                            let scripts: Record<string, string> = {};
+                            
+                            try {
+                                const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+                                scripts = packageJson.scripts || {};
+                            } catch {
+                                // No package.json or invalid JSON
+                            }
+
+                            // Run install
+                            for (const command of subDir.commands) {
+                                if (!commandsRun.has(command)) {
+                                    try {
+                                        console.log(`Running setup command in ${subDir.path}: ${command}`);
+                                        await this.executeCommand(`cd "${workspacePath}" && ${command}`);
+                                        commandsRun.add(command);
+                                    } catch (error) {
+                                        console.error(`Error running setup command ${command} in ${subDir.path}:`, error);
+                                    }
+                                }
+                            }
+
+                            // Run build if needed
+                            if (scripts.build || scripts['build:prod']) {
+                                const buildCmd = `cd ${subDir.path} && npm run ${scripts['build:prod'] ? 'build:prod' : 'build'}`;
+                                if (!commandsRun.has(buildCmd)) {
+                                    try {
+                                        console.log(`Running build in ${subDir.path}`);
+                                        await this.executeCommand(`cd "${workspacePath}" && ${buildCmd}`);
+                                        commandsRun.add(buildCmd);
+                                    } catch (error) {
+                                        console.error(`Error running build in ${subDir.path}:`, error);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Check for specific build/start commands in package.json
+                if (indicator.file === 'package.json') {
+                    try {
+                        const packageJson = JSON.parse(await fs.readFile(path.join(workspacePath, 'package.json'), 'utf-8'));
+                        const scripts = packageJson.scripts || {};
+
+                        // Run build if it exists and hasn't been run
+                        if (scripts.build && !commandsRun.has('npm run build')) {
+                            try {
+                                console.log('Running build command from package.json');
+                                await this.executeCommand(`cd "${workspacePath}" && npm run build`);
+                                commandsRun.add('npm run build');
+                            } catch (error) {
+                                console.error('Error running build command:', error);
+                            }
+                        }
+
+                        // Store available run commands for later
+                        if (scripts.start || scripts.dev) {
+                            indicator.runCommands = {
+                                ...indicator.runCommands,
+                                start: [
+                                    ...(scripts.dev ? ['npm run dev'] : []),
+                                    ...(scripts.start ? ['npm start'] : [])
+                                ]
+                            };
+                        }
+                    } catch (error) {
+                        console.error('Error parsing package.json:', error);
+                    }
+                }
+            }
+        }
+    }
+
+    private async getStartCommand(workspacePath: string): Promise<string | null> {
+        // Check package.json first
+        try {
+            const packageJsonPath = path.join(workspacePath, 'package.json');
+            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
+            const scripts = packageJson.scripts || {};
+            
+            // Prefer dev script for development
+            if (scripts.dev) return `npm run dev`;
+            if (scripts.start) return `npm start`;
+        } catch {
+            // No package.json or invalid JSON
+        }
+
+        // Check for other common patterns
+        const startPatterns = [
+            { file: 'manage.py', command: 'python manage.py runserver' },
+            { file: 'app.py', command: 'flask run' },
+            { file: 'main.go', command: 'go run main.go' },
+            { file: 'Cargo.toml', command: 'cargo run' },
+            { file: 'gradlew', command: './gradlew bootRun' },
+            { file: 'mvnw', command: './mvnw spring-boot:run' }
+        ];
+
+        for (const pattern of startPatterns) {
+            if (await fs.access(path.join(workspacePath, pattern.file)).then(() => true).catch(() => false)) {
+                return pattern.command;
+            }
+        }
+
+        return null;
+    }
+
+    private async findFiles(dir: string, pattern: string): Promise<string[]> {
+        const files = await fs.readdir(dir, { withFileTypes: true });
+        const results: string[] = [];
+
+        for (const file of files) {
+            const fullPath = path.join(dir, file.name);
+            if (file.isDirectory()) {
+                results.push(...await this.findFiles(fullPath, pattern));
+            } else if (this.matchesPattern(file.name, pattern)) {
+                results.push(fullPath);
+            }
+        }
+
+        return results;
+    }
+
+    private matchesPattern(filename: string, pattern: string): boolean {
+        if (pattern.startsWith('*.')) {
+            return filename.endsWith(pattern.slice(1));
+        }
+        return filename === pattern;
+    }
+
+    private async hasAnyFile(dir: string, patterns: string[]): Promise<boolean> {
+        for (const pattern of patterns) {
+            const files = await this.findFiles(dir, pattern);
+            if (files.length > 0) return true;
+        }
+        return false;
+    }
+
     /**
      * Executes code in an isolated workspace
      * Main public method for running code with dependencies
@@ -431,6 +685,11 @@ export class CursorShadowWorkspaceHandler {
                 mainFilePath = options.filepath;
             } else {
                 throw new Error('Either code and filename or filepath must be provided');
+            }
+
+            // Run setup commands if enabled
+            if (options.autoSetup !== false) {
+                await this.detectAndRunSetupCommands(workspacePath);
             }
 
             // Determine which file to run

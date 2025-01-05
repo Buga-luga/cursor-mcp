@@ -63,21 +63,18 @@ export class CursorShadowWorkspaceHandler {
      * @param {string} extension - File extension to determine setup
      */
     async setupNodeProject(workspacePath, extension) {
-        // Create package.json with necessary dependencies
+        const packageJsonPath = path.join(workspacePath, 'package.json');
         const packageJson = {
-            "name": "shadow-workspace",
-            "version": "1.0.0",
-            "type": "module",
-            "dependencies": {
-                "@babel/core": "^7.22.0",
-                "@babel/preset-react": "^7.22.0",
-                "@babel/preset-typescript": "^7.22.0",
-                "@babel/register": "^7.22.0",
-                "@babel/preset-env": "^7.22.0",
-                "ts-node": "^10.9.1",
-                "typescript": "^5.0.0",
-                "react": "^18.2.0",
-                "react-dom": "^18.2.0"
+            name: 'shadow-workspace',
+            version: '1.0.0',
+            private: true,
+            scripts: {
+                start: 'node',
+                build: 'tsc'
+            },
+            dependencies: {
+                typescript: '^4.9.0',
+                '@types/node': '^16.0.0'
             }
         };
         await fs.writeFile(path.join(workspacePath, 'package.json'), JSON.stringify(packageJson, null, 2));
@@ -111,33 +108,16 @@ export class CursorShadowWorkspaceHandler {
      * @returns {string|null} Command to execute the file or null if unsupported
      */
     getRunCommand(extension, filePath) {
-        // Get the workspace path from the file path
-        const workspacePath = path.dirname(filePath);
         const commands = {
-            // Node.js and TypeScript
             '.js': `node "${filePath}"`,
-            '.ts': `ts-node "${filePath}"`,
-            '.mjs': `node "${filePath}"`,
-            '.cjs': `node "${filePath}"`,
-            // React/JSX/TSX
-            '.jsx': `node -r @babel/register "${filePath}"`,
-            '.tsx': `ts-node --compiler-options '{"jsx":"react"}' "${filePath}"`,
-            // Python
+            '.ts': `npx ts-node "${filePath}"`,
+            '.tsx': `npx ts-node "${filePath}"`,
+            '.jsx': `npx babel-node "${filePath}"`,
             '.py': `python "${filePath}"`,
-            '.py3': `python3 "${filePath}"`,
-            '.pyw': `pythonw "${filePath}"`,
-            // Shell scripts
-            '.sh': `bash "${filePath}"`,
-            '.bash': `bash "${filePath}"`,
-            '.zsh': `zsh "${filePath}"`,
-            '.bat': `"${filePath}"`,
-            '.cmd': `"${filePath}"`,
-            '.ps1': `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${filePath}"`,
-            // Other languages
             '.rb': `ruby "${filePath}"`,
             '.php': `php "${filePath}"`,
-            '.pl': `perl "${filePath}"`,
-            '.r': `Rscript "${filePath}"`,
+            '.java': `java "${filePath}"`,
+            '.cs': `dotnet run "${filePath}"`,
             '.go': `go run "${filePath}"`,
             '.java': `java "${filePath}"`,
             '.groovy': `groovy "${filePath}"`,
@@ -373,6 +353,10 @@ export class CursorShadowWorkspaceHandler {
             else {
                 throw new Error('Either code and filename or filepath must be provided');
             }
+            // Run setup commands if enabled
+            if (options.autoSetup !== false) {
+                await this.detectAndRunSetupCommands(workspacePath);
+            }
             // Determine which file to run
             let fileToRun;
             if (options.entryPoint) {
@@ -428,16 +412,8 @@ export class CursorShadowWorkspaceHandler {
      */
     async executeCommand(command) {
         return new Promise((resolve, reject) => {
-            const childProcess = exec(command, {
-                maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-                timeout: 30000, // 30 second timeout
-                env: {
-                    ...process.env,
-                    FORCE_COLOR: '1',
-                    TERM: 'xterm-256color'
-                }
-            }, (error, stdout, stderr) => {
-                if (error && !error.message.includes('exit code 1')) {
+            exec(command, { maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
+                if (error && !stderr) {
                     reject(error);
                 }
                 else {
@@ -473,13 +449,12 @@ export class CursorShadowWorkspaceHandler {
      * @param {string} workspaceId - ID of the workspace to clean
      */
     async cleanup(workspaceId) {
+        const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
         try {
-            const workspacePath = path.join(this.workspaceBaseDir, workspaceId);
             await fs.rm(workspacePath, { recursive: true, force: true });
         }
         catch (error) {
-            console.error('Error cleaning up workspace:', error);
-            throw error;
+            console.error(`Error cleaning up workspace ${workspaceId}:`, error);
         }
     }
 }
