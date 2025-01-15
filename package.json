@@ -3,20 +3,24 @@
   "version": "1.0.0",
   "type": "module",
   "bin": {
-    "mcp-cursor": "./build/index.js"
+    "mcp-cursor": "./build/test/cursor-tool.js"
   },
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
-    "dev": "ts-node-dev --respawn src/index.ts"
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "dev:inspect": "ts-node-dev --respawn src/index.ts",
+    "cursor": "node build/test/cursor-tool.js"
   },
   "files": [
     "build"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.1.0",
+    "@modelcontextprotocol/sdk": "^1.1.1",
+    "clipboardy": "^3.0.0",
     "dotenv": "^16.4.7",
     "fs-extra": "^11.2.0",
+    "node-window-manager": "^2.2.4",
     "robotjs": "^0.6.0",
     "uuid": "^9.0.1",
     "zod": "^3.22.4"
