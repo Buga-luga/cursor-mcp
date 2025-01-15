@@ -6,88 +6,135 @@ A Model Context Protocol (MCP) implementation that enables seamless integration 
 
 <a href="https://glama.ai/mcp/servers/4fg1gxbcex"><img width="380" height="200" src="https://glama.ai/mcp/servers/4fg1gxbcex/badge" alt="Cursor Server MCP server" /></a>
 
-## Overview
-This project implements the Model Context Protocol (MCP) specification to facilitate communication between Claude AI and desktop applications. It enables:
+## Quick Start (Windows)
+
+1. **Prerequisites**
+   - [Node.js](https://nodejs.org/) v18 or higher
+   - [Cursor IDE](https://cursor.sh/)
+   - Windows 10 or higher
+
+2. **Installation**
+   ```bash
+   # Install globally
+   npm install -g mcp-cursor
+
+   # Or install locally
+   git clone https://github.com/yourusername/cursor-mcp.git
+   cd cursor-mcp
+   npm install
+   ```
+
+3. **Configuration**
+   - Create a `.env` file in your project root:
+     ```bash
+     # Windows path example
+     DEFAULT_WORKSPACE_PATH=C:/Users/YourUsername/Documents/cursor-workspaces
+     ```
+
+4. **Add to Claude's MCP Configuration**
+   Add the following to your Claude configuration:
+   ```json
+   {
+     "name": "cursor",
+     "type": "mcp",
+     "config": {
+       "server": "https://glama.ai/mcp/servers/4fg1gxbcex",
+       "capabilities": ["cursor_control", "window_management"]
+     }
+   }
+   ```
+
+5. **Start the Server**
+   ```bash
+   # If installed globally
+   mcp-cursor
+
+   # If installed locally
+   npm start
+   ```
+
+## Features
 - Real-time AI assistance in your development workflow
 - Context-aware code suggestions and completions
 - Seamless integration with Cursor IDE
-- TypeScript-based implementation for type safety and better developer experience
+- Windows automation for enhanced productivity
 
-## Prerequisites
-- Node.js (v18 or higher)
-- TypeScript
-- Cursor IDE
-- Claude API access
+## Detailed Setup
 
-## Installation
+### Local Development Setup
+1. Clone and install:
+   ```bash
+   git clone https://github.com/yourusername/cursor-mcp.git
+   cd cursor-mcp
+   npm install
+   ```
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/cursor-mcp.git
-cd cursor-mcp
-```
+2. Create environment config:
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and set your workspace path:
+   ```bash
+   DEFAULT_WORKSPACE_PATH=C:/Users/YourUsername/Documents/cursor-workspaces
+   ```
 
-2. Install dependencies:
-```bash
-npm install
-```
+3. Build and run:
+   ```bash
+   # Development mode with hot reload
+   npm run dev
 
-3. Create a `.env` file:
-```bash
-cp .env.example .env
-```
+   # Production mode
+   npm run build
+   npm start
+   ```
 
-4. Configure your workspace path in the `.env` file:
-```bash
-DEFAULT_WORKSPACE_PATH=E:/Programming
-```
+### Troubleshooting
 
-## Development Setup
+1. **Window Detection Issues**
+   - Ensure Cursor IDE is running
+   - Try restarting the MCP server
+   - Check if your workspace path is correct
 
-1. Build the project:
-```bash
-npm run build
-```
+2. **Permission Issues**
+   - Run terminal as administrator for first-time setup
+   - Ensure proper file permissions in workspace directory
 
-2. Start the development server:
-```bash
-npm run dev
-```
-
-For production use:
-```bash
-npm start
-```
+3. **Node Version Issues**
+   - Use `nvm` to switch to Node.js v18 or higher:
+     ```bash
+     nvm install 18
+     nvm use 18
+     ```
 
 ## Project Structure
-
 ```
 cursor-mcp/
 ├── src/           # Source code
+│   ├── services/  # Core services
+│   ├── handlers/  # Event handlers
+│   └── types/     # TypeScript definitions
 ├── build/         # Compiled JavaScript
-├── .env.example   # Environment variables template
-└── package.json   # Project dependencies and scripts
+└── .env          # Environment configuration
 ```
 
 ## Scripts
-
-- `npm run build` - Compiles TypeScript to JavaScript
-- `npm run start` - Runs the compiled application
-- `npm run dev` - Starts development server with hot-reload
+- `npm run build` - Compile TypeScript
+- `npm start` - Run production server
+- `npm run dev` - Start development server with hot-reload
 
 ## Contributing
-
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details.
 
 ## Support
-
-For support, please open an issue in the GitHub repository or contact the maintainers.
+For support:
+- Open an issue in the GitHub repository
+- Join our [Discord community](https://discord.gg/yourcommunity)
+- Check the [FAQ](https://github.com/yourusername/cursor-mcp/wiki/FAQ)
 
