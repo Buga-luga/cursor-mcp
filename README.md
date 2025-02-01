@@ -8,6 +8,15 @@ A Model Context Protocol (MCP) implementation that enables seamless integration 
 
 ## Quick Start (Windows)
 
+### Installing via Smithery
+
+To install Cursor for Claude Desktop automatically via [Smithery](https://smithery.ai/server/cursor-mcp-tool):
+
+```bash
+npx -y @smithery/cli install cursor-mcp-tool --client claude
+```
+
+### Installing Manually
 1. **Prerequisites**
    - [Node.js](https://nodejs.org/) v18 or higher
    - [Cursor IDE](https://cursor.sh/)
